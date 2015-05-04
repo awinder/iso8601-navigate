@@ -1,0 +1,27 @@
+{
+  "name": "iso8601-navigate",
+  "version": "1.0.0",
+  "description": "Validates an ISO-8601 repeating interval, and allows you to see the next / previous date according to the interval",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/awinder/iso8601-navigate.git"
+  },
+  "keywords": [
+    "iso8061",
+    "date",
+    "intervals"
+  ],
+  "author": "Andy Winder",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/awinder/iso8601-navigate/issues"
+  },
+  "homepage": "https://github.com/awinder/iso8601-navigate",
+  "dependencies": {
+    "moment": "^2.10.2"
+  }
+}
