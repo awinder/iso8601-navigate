@@ -1,6 +1,6 @@
 {
   "name": "iso8601-navigate",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Validates an ISO-8601 repeating interval, and allows you to see the next / previous date according to the interval",
   "main": "index.js",
   "scripts": {
