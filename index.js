@@ -28,7 +28,9 @@ IsoFactory.prototype.next = function(timestamp) {
 		return NaN;
 	}
 	
-	var ret = moment(timestamp);	
+	var ret = moment(timestamp);
+	
+	console.log(ret.unix());
 	
 	if (ret.isValid() === false || ret > this.config.end_date) {
 		return NaN;
@@ -44,6 +46,8 @@ IsoFactory.prototype.next = function(timestamp) {
 	if (ret > this.config.end_date) { 
 		return NaN;
 	}
+	
+	console.log(ret.unix());
 	
 	return ret.unix();
 };
