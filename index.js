@@ -43,6 +43,8 @@ IsoFactory.prototype.next = function(timestamp) {
 	ret.add(this.config.minutes, 'minutes');
 	ret.add(this.config.seconds, 'seconds');
 	
+	console.log(this.config);
+	
 	if (ret > this.config.end_date) { 
 		return NaN;
 	}
