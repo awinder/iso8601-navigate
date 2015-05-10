@@ -30,27 +30,21 @@ IsoFactory.prototype.next = function(timestamp) {
 	
 	var ret = moment(timestamp);
 	
-	console.log(ret.unix());
-	
 	if (ret.isValid() === false || ret > this.config.end_date) {
 		return NaN;
 	}
 	
-	ret.add(this.config.years, 'years');
-	ret.add(this.config.months, 'months');
-	ret.add(this.config.days, 'days');
-	ret.add(this.config.hours, 'hours');
-	ret.add(this.config.minutes, 'minutes');
-	ret.add(this.config.seconds, 'seconds');
-	
-	console.log(this.config);
+	ret.add(this.config.interval.years, 'years');
+	ret.add(this.config.interval.months, 'months');
+	ret.add(this.config.interval.days, 'days');
+	ret.add(this.config.interval.hours, 'hours');
+	ret.add(this.config.interval.minutes, 'minutes');
+	ret.add(this.config.interval.seconds, 'seconds');
 	
 	if (ret > this.config.end_date) { 
 		return NaN;
 	}
-	
-	console.log(ret.unix());
-	
+
 	return ret.unix();
 };
 
