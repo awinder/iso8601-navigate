@@ -7,12 +7,12 @@ function parseInterval(intervalStr) {
 	
 	if (parts) {
 		interval = {
-			years: parts[2] || 0,
-			months: parts[4] || 0,
-			days: parts[6] || 0,
-			hours: parts[8] || 0,
-			minutes: parts[10] || 0,
-			seconds: parts[12] || 0
+			years: parseInt(parts[2]) || 0,
+			months: parseInt(parts[4]) || 0,
+			days: parseInt(parts[6]) || 0,
+			hours: parseInt(parts[8]) || 0,
+			minutes: parseInt(parts[10]) || 0,
+			seconds: parseInt(parts[12]) || 0
 		}
 	}
 	
