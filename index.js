@@ -34,10 +34,6 @@ IsoFactory.prototype.next = function(timestamp) {
 		return NaN;
 	}
 	
-	console.log(ret.unix());
-	
-	console.log(this.config.interval);
-
 	ret.add(this.config.interval.years, 'years');
 	ret.add(this.config.interval.months, 'months');
 	ret.add(this.config.interval.days, 'days');
@@ -48,8 +44,6 @@ IsoFactory.prototype.next = function(timestamp) {
 	if (ret > this.config.end_date) { 
 		return NaN;
 	}
-
-	console.log(ret.unix());
 
 	return ret.unix();
 };
