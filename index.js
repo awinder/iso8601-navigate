@@ -20,28 +20,31 @@ function parseInterval(intervalStr) {
 }
 
 function IsoFactory(conf) {
-	this.config = conf;
+	this.start_date = conf.start_date;
+	this.end_date = conf.end_date;
+	this.interval = conf.interval;
+	this.repeats = conf.repeats;
 }
 
 IsoFactory.prototype.next = function(timestamp) {
-	if (typeof this.config.interval !== 'object') {
+	if (typeof this.interval !== 'object') {
 		return NaN;
 	}
 	
 	var ret = moment(timestamp);
 	
-	if (ret.isValid() === false || ret > this.config.end_date) {
+	if (ret.isValid() === false || ret > this.end_date) {
 		return NaN;
 	}
 	
-	ret.add(this.config.interval.years, 'years');
-	ret.add(this.config.interval.months, 'months');
-	ret.add(this.config.interval.days, 'days');
-	ret.add(this.config.interval.hours, 'hours');
-	ret.add(this.config.interval.minutes, 'minutes');
-	ret.add(this.config.interval.seconds, 'seconds');
+	ret.add(this.interval.years, 'years');
+	ret.add(this.interval.months, 'months');
+	ret.add(this.interval.days, 'days');
+	ret.add(this.interval.hours, 'hours');
+	ret.add(this.interval.minutes, 'minutes');
+	ret.add(this.interval.seconds, 'seconds');
 	
-	if (ret > this.config.end_date) { 
+	if (ret > this.end_date) { 
 		return NaN;
 	}
 
@@ -49,24 +52,24 @@ IsoFactory.prototype.next = function(timestamp) {
 };
 
 IsoFactory.prototype.previous = function(timestamp) {
-	if (typeof this.config.interval !== 'object') {
+	if (typeof this.interval !== 'object') {
 		return NaN;
 	}
 	
 	var ret = moment(timestamp);
 	
-	if (ret.isValid() === false || ret < this.config.start_date) {
+	if (ret.isValid() === false || ret < this.start_date) {
 		return NaN;
 	}
 	
-	ret.subtract(this.config.interval.years, 'years');
-	ret.subtract(this.config.interval.months, 'months');
-	ret.subtract(this.config.interval.days, 'days');
-	ret.subtract(this.config.interval.hours, 'hours');
-	ret.subtract(this.config.interval.minutes, 'minutes');
-	ret.subtract(this.config.interval.seconds, 'seconds');
+	ret.subtract(this.interval.years, 'years');
+	ret.subtract(this.interval.months, 'months');
+	ret.subtract(this.interval.days, 'days');
+	ret.subtract(this.interval.hours, 'hours');
+	ret.subtract(this.interval.minutes, 'minutes');
+	ret.subtract(this.interval.seconds, 'seconds');
 	
-	if (ret < this.config.start_date) { 
+	if (ret < this.start_date) { 
 		return NaN;
 	}
 	
