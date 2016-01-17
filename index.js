@@ -22,7 +22,7 @@ function parseInterval(intervalStr) {
 function Navigator(conf) {
 	this.created = moment();
 	this.start_date = conf.start_date || this.created;
-	this.end_date = conf.end_date || this.created;
+	this.end_date = conf.end_date || Infinity;
 	this.interval = conf.interval;
 	this.repeats = conf.repeats;
 }
