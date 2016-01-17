@@ -19,21 +19,30 @@ function parseInterval(intervalStr) {
 	return interval;
 }
 
-function IsoFactory(conf) {
-	this.start_date = conf.start_date;
-	this.end_date = conf.end_date;
+function Navigator(conf) {
+	this.created = moment();
+	this.start_date = conf.start_date || this.created;
+	this.end_date = conf.end_date || this.created;
 	this.interval = conf.interval;
 	this.repeats = conf.repeats;
 }
 
-IsoFactory.prototype.next = function(timestamp) {
+Navigator.prototype.next = function(timestamp, cb) {
 	if (typeof this.interval !== 'object') {
+		if(cb) cb(new Error('ISO8601 navigator interval is not valid.'));
 		return NaN;
 	}
 	
-	var ret = moment(timestamp);
+	var end = this.end_date,
+		endString = end===Infinity ? 'Infinity' : end.toISOString(),
+		noLaterErr = 'No occurence of this pattern after '+endString,
+		invalidOrTooLateErr = 'Given timestamp is invalid or after '+
+							  'ISO8601 navigator start date: '+endString,
+		ret = moment(timestamp),
+		unix;
 	
-	if (ret.isValid() === false || ret > this.end_date) {
+	if (ret.isValid() === false || ret > end) {
+		if(cb) cb(new Error(invalidOrTooLateErr));
 		return NaN;
 	}
 	
@@ -43,22 +52,33 @@ IsoFactory.prototype.next = function(timestamp) {
 	ret.add(this.interval.hours, 'hours');
 	ret.add(this.interval.minutes, 'minutes');
 	ret.add(this.interval.seconds, 'seconds');
-	
-	if (ret > this.end_date) { 
+
+	if (ret > end) { 
+		if(cb) cb(new Error(noLaterErr));
 		return NaN;
 	}
 
-	return ret.unix();
+	unix = ret.unix();
+
+	if(cb) cb(null, unix)
+	return unix;
 };
 
-IsoFactory.prototype.previous = function(timestamp) {
+Navigator.prototype.previous = function(timestamp, cb) {
 	if (typeof this.interval !== 'object') {
+		if(cb) cb(new Error('ISO8601 navigator interval is not valid.'));
 		return NaN;
 	}
+	var start = this.start_date,
+		startString = start.toISOString(),
+		noEarlierErr = 'No occurence of this pattern before '+startString,
+		invalidOrTooEarlyErr = 'Given timestamp is invalid or before '+
+							   'ISO8601 navigator start date: '+startString,
+		ret = moment(timestamp),
+		unix;
 	
-	var ret = moment(timestamp);
-	
-	if (ret.isValid() === false || ret < this.start_date) {
+	if (ret.isValid() === false || ret < start) {
+		if(cb) cb(new Error(invalidOrTooEarlyErr));
 		return NaN;
 	}
 	
@@ -69,23 +89,44 @@ IsoFactory.prototype.previous = function(timestamp) {
 	ret.subtract(this.interval.minutes, 'minutes');
 	ret.subtract(this.interval.seconds, 'seconds');
 	
-	if (ret < this.start_date) { 
+	if (ret < start) {
+		if(cb) cb(new Error(noEarlierErr));
 		return NaN;
 	}
 	
-	return ret.unix();
+	unix = ret.unix();
+
+	if(cb) cb(null, unix)
+	return unix;
 };
 
-module.exports = function(interval) {
-	var pieces = [];
+Navigator.prototype.prev = Navigator.prototype.previous;
+
+function isoFactory(interval, cb) {
+	var pieces = [],
+		invalidNavigator = new Navigator({ interval: NaN }),
+		tooManySeparators = 'ISO8601: too many interval designators',
+		tooFewSeparators = 'ISO8601: not enough interval designators',
+		repeatRequired = 'ISO8601 repeating interval must start with `R`',
+		formatting_error;
 	
 	if (typeof interval === 'string') {
-		pieces = interval.split('/');
+		if(cb) cb(new Error('An ISO8601-formatted string is required'));
 	}
 	
+	pieces = interval.split('/');
 	// validate proper formatting
-	if (pieces.length > 3 || pieces.length < 2 || pieces[0].charAt(0) !== 'R') {
-		return IsoFactory({ interval: NaN });
+	if (pieces.length > 3) {
+		formatting_error = tooManySeparators;
+	} else if(pieces.length < 2) {
+		formatting_error = tooFewSeparators;
+	} else if(pieces[0].charAt(0) !== 'R') {
+		formatting_error = repeatRequired;
+	} 
+	
+	if(formatting_error) {
+		if(cb) cb(new Error(formatting_error));
+		return invalidNavigator;
 	}
 	
 	var repeat = pieces[0].match(/R(\d+)/);
@@ -109,11 +150,21 @@ module.exports = function(interval) {
 		interval = parseInterval(pieces[2]);
 		start_date = moment(pieces[1]);
 	}
+
+	if(typeof interval !== 'object') {
+		if(cb) cb(new Error('Unable to parse interval'));
+		return invalidNavigator;
+	}
 	
-	return new IsoFactory({
+	var period = new Navigator({
 		start_date: start_date,
 		end_date: end_date,
 		interval: interval,
 		repeats: repeat
 	});
+
+	if(cb) cb(null, period);
+	return period;
 };
+
+module.exports = isoFactory;
