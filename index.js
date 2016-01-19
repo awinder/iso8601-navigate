@@ -1,143 +1,205 @@
 var moment = require('moment')
 
+function callback(err, result, cb) {
+  if (typeof err === 'string') {
+    err = new Error(err);
+  }
+  if (cb) cb(err, result);
+  return result;
+};
+
+function until(timestamp, start, duration, repeat) {
+  var unlimited = repeat===Infinity
+    , next = moment(start)
+    , next_count = 0
+    , prev
+    , prev_count;
+
+  if (start < timestamp) {
+    while (timestamp > next && (unlimited || repeat > next_count)) {
+      next_count++;
+      prev = moment(next);
+      next.add(duration);
+    }
+
+    if(timestamp > next) { // we hit our repeat count
+      prev = next;
+      next = undefined;
+    }
+
+    prev_count = prev===undefined ? undefined : next_count - 1;
+    next_count = next===undefined ? undefined : next_count;
+  }
+
+  return {next: next,
+          next_count: next_count,
+          prev: prev,
+          prev_count: prev_count};
+}
+
+function backuntil(timestamp, end, duration, repeat) {
+  var unlimited = repeat===Infinity
+    , prev = moment(end)
+    , prev_count = repeat
+    , next
+    , next_count;
+
+  if (timestamp < end) {
+    while (timestamp < prev && (unlimited || prev_count > 0)) {
+      prev_count--;
+      next = moment(prev);
+      prev.subtract(duration);
+    }
+
+    if (timestamp < prev) {
+      next = prev;
+      prev = undefined;
+    }
+
+    next_count = next===undefined ? undefined : prev_count + 1;
+    prev_count = prev===undefined ? undefined : prev_count;
+  }
+  return {next: next,
+          next_count: next_count,
+          prev: prev,
+          prev_count: prev_count};
+}
 
 function Navigator(conf) {
-	this.created = moment();
-	this.start_date = conf.start_date || this.created;
-	this.end_date = conf.end_date || Infinity;
-	this.duration = conf.duration;
-	this.repeats = conf.repeats;
+  this.start_date = conf.start_date;
+  this.end_date = conf.end_date;
+  this.duration = conf.duration;
+  this.repeats = conf.repeats;
+
+  errors = {
+    invalid: 'ISO8601 navigator interval is not valid',
+    bad_timestamp: 'Given timestamp is invalid',
+    too_many_separators: 'ISO8601: too many interval designators',
+    too_few_separators: 'ISO8601: not enough interval designators',
+    repeat_required: 'ISO8601 repeating interval must start with `R`',
+    iso_string_required: 'An ISO8601-formatted string is required',
+    parse_error: 'Unable to parse interval'
+  };
+
+  if (this.end_date && this.end_date.isValid()) {
+    errors.no_later = 'No recurrence after ' + this.end_date.toISOString();
+  }
+
+  if (this.start_date && this.start_date.isValid()) {
+    errors.no_earlier = 'No recurrence after ' + this.start_date.toISOString();
+  }
+
+  this.errors = errors;
+
 }
 
 Navigator.prototype.next = function(timestamp, cb) {
-	if (!this.duration.asSeconds()) {
-		if(cb) cb(new Error('ISO8601 navigator interval is not valid.'));
-		return NaN;
-	}
+  var ret = moment(timestamp);
 
-	var end = this.end_date,
-		endString = end===Infinity ? 'Infinity' : end.toISOString(),
-		noLaterErr = 'No occurence of this pattern after '+endString,
-		invalidOrTooLateErr = 'Given timestamp is invalid or after '+
-							  'ISO8601 navigator start date: '+endString,
-		ret = moment(timestamp),
-		unix;
+  if (!this.duration.asSeconds()) {
+    return callback(this.errors.invalid, NaN, cb);
+  }
 
-	if (ret.isValid() === false || ret > end) {
-		if(cb) cb(new Error(invalidOrTooLateErr));
-		return NaN;
-	}
+  if (ret.isValid() === false) {
+    return callback(this.errors.bad_timestamp, NaN, cb);
+  }
 
-	ret.add(this.duration);
+  ret.add(this.duration);
 
-	if (ret > end) {
-		if(cb) cb(new Error(noLaterErr));
-		return NaN;
-	}
+  if (ret > this.end_date) {
+    return callback(this.errors.no_later, NaN, cb);
+  }
 
-	unix = ret.unix();
-
-	if(cb) cb(null, unix)
-	return unix;
+  return callback(null, ret.unix(), cb);
 };
 
 Navigator.prototype.previous = function(timestamp, cb) {
-	if (!this.duration.asSeconds()) {
-		if(cb) cb(new Error('ISO8601 navigator interval is not valid.'));
-		return NaN;
-	}
-	var start = this.start_date,
-		startString = start.toISOString(),
-		noEarlierErr = 'No occurence of this pattern before '+startString,
-		invalidOrTooEarlyErr = 'Given timestamp is invalid or before '+
-							   'ISO8601 navigator start date: '+startString,
-		ret = moment(timestamp),
-		unix;
+  var ret = moment(timestamp);
 
-	if (ret.isValid() === false || ret < start) {
-		if(cb) cb(new Error(invalidOrTooEarlyErr));
-		return NaN;
-	}
+  if (!this.duration.asSeconds()) {
+    return callback(this.errors.invalid, NaN, cb);
+  }
 
-	ret.subtract(this.duration);
+  if (ret.isValid() === false) {
+    return callback(this.errors.bad_timestamp, NaN, cb);
+  }
 
-	if (ret < start) {
-		if(cb) cb(new Error(noEarlierErr));
-		return NaN;
-	}
+  ret.add(this.duration);
 
-	unix = ret.unix();
+  if (ret < this.start_date) {
+    return callback(this.errors.no_earlier, NaN, cb);
+  }
 
-	if(cb) cb(null, unix)
-	return unix;
+  return callback(null, ret.unix(), cb);
 };
 
 Navigator.prototype.prev = Navigator.prototype.previous;
 
 function isoFactory(interval, cb) {
-	var pieces = [],
-		invalidNavigator = new Navigator({ duration: moment(null) }),
-		tooManySeparators = 'ISO8601: too many interval designators',
-		tooFewSeparators = 'ISO8601: not enough interval designators',
-		repeatRequired = 'ISO8601 repeating interval must start with `R`',
-		designator = interval.match(/--/) ? '--' : '/',
-		formatting_error;
+  var invalid_navigator = new Navigator({ duration: moment(null) })
+    , errors = invalid_navigator.errors
+    , designator = '/'
+    , repeat = Infinity
+    , repeat_match
+    , formatting_error
+    , start_date
+    , end_date
+    , duration
+    , pieces;
 
-	if (typeof interval === 'string') {
-		if(cb) cb(new Error('An ISO8601-formatted string is required'));
-	}
+  try {
+    designator = interval.match(/--/) ? '--' : designator;
+    pieces = interval.split(designator);
+  } catch(e) {
+    return callback(errors.iso_string_required, invalid_navigator, cb);
+  }
 
-	pieces = interval.split('/');
-	// validate proper formatting
-	if (pieces.length > 3) {
-		formatting_error = tooManySeparators;
-	} else if(pieces.length < 2) {
-		formatting_error = tooFewSeparators;
-	} else if(pieces[0].charAt(0) !== 'R') {
-		formatting_error = repeatRequired;
-	}
+  // validate proper formatting
+  if (pieces.length > 3) {
+    formatting_error = errors.too_many_separators;
+  } else if(pieces.length < 2) {
+    formatting_error = errors.too_few_separators;
+  } else if(pieces[0].charAt(0) !== 'R') {
+    formatting_error = errors.repeat_required;
+  }
 
-	if(formatting_error) {
-		if(cb) cb(new Error(formatting_error));
-		return invalidNavigator;
-	}
+  if(formatting_error) {
+    return callback(formatting_error, invalid_navigator, cb);
+  }
 
-	var repeat = pieces[0].match(/R(\d+)/);
+  repeat_match = pieces[0].match(/R(\d+)/);
 
-	if (repeat) {
-		repeat = repeat.pop();
-	} else {
-		repeat = 0;
-	}
+  if (repeat_match) {
+    repeat = repeat_match[0];
+  }
 
-	var start_date = 0
-	  , end_date = Infinity
-	  , duration = NaN;
+  if (pieces.length === 2) {
+    if(pieces[1].charAt(0) === 'P') { // 4.5.1.b
+      duration = moment.duration(pieces[1]);
+    }
+  } else if (pieces[1].charAt(0) === 'P') { // 4.5.1.d
+    duration = moment.duration(pieces[1]);
+    end_date = moment(pieces[2]);
+  } else if (pieces[2].charAt(0) === 'P') { // 4.5.1.c
+    start_date = moment(pieces[1]);
+    duration = moment.duration(pieces[2]);
+  } else { // 4.5.1.a
+    start_date = moment(pieces[1]);
+    duration = moment.duration(moment(pieces[2]) - start_date);
+  }
 
-	if (pieces.length === 2 && pieces[1].charAt(0) === 'P') {
-		duration = moment.duration(pieces[1]);
-	} else if (pieces.length === 3 && pieces[1].charAt(0) === 'P') {
-		duration = moment.duration(pieces[1]);
-		end_date = moment(pieces[2]);
-	} else if (pieces.length === 3 && pieces[2].charAt(0) === 'P') {
-		duration = moment.duration(pieces[2]);
-		start_date = moment(pieces[1]);
-	}
+  if(!duration || !duration.asSeconds()) {
+    return callback(errors.parse_error, invalid_navigator, cb);
+  }
 
-	if(!duration.asSeconds()) {
-		if(cb) cb(new Error('Unable to parse interval'));
-		return invalidNavigator;
-	}
+  var navigator = new Navigator({
+    start_date: start_date,
+    end_date: end_date,
+    duration: duration,
+    repeats: repeat
+  });
 
-	var navigator = new Navigator({
-		start_date: start_date,
-		end_date: end_date,
-		duration: duration,
-		repeats: repeat
-	});
-
-	if(cb) cb(null, navigator);
-	return navigator;
+  return callback(null, navigator, cb);
 };
 
 module.exports = isoFactory;
