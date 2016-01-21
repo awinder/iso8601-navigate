@@ -4,7 +4,7 @@
   "description": "Validates an ISO-8601 repeating interval, and allows you to see the next / previous date according to the interval",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha test"
   },
   "repository": {
     "type": "git",
@@ -23,5 +23,10 @@
   "homepage": "https://github.com/awinder/iso8601-navigate",
   "dependencies": {
     "moment": "^2.10.2"
+  },
+  "devDependencies": {
+    "chai": "^3.4.1",
+    "mocha": "^2.3.4",
+    "should": "^8.1.1"
   }
 }
