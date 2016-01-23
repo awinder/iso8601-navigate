@@ -28,8 +28,8 @@ function Navigator(conf) {
 }
 
 Navigator.prototype.step = function(timestamp, back) {
-  var next = moment(timestamp).utcOffset(0)
-    , prev = moment(timestamp).utcOffset(0)
+  var next = gmt(timestamp)
+    , prev = gmt(timestamp)
     , next_count = 1
     , prev_count = 0;
 
@@ -47,7 +47,7 @@ Navigator.prototype.step = function(timestamp, back) {
 
 Navigator.prototype.until = function(timestamp) {
   var unlimited = this.repeats===Infinity
-    , next = moment(this.start_date).utcOffset(0)
+    , next = gmt(this.start_date)
     , next_count = 0
     , prev
     , prev_count;
@@ -55,7 +55,7 @@ Navigator.prototype.until = function(timestamp) {
   if (this.start_date < timestamp) {
     while (timestamp > next && (unlimited || this.repeats > next_count)) {
       next_count++;
-      prev = moment(next).utcOffset(0);
+      prev = gmt(next);
       next.add(this.duration);
     }
 
@@ -76,7 +76,7 @@ Navigator.prototype.until = function(timestamp) {
 
 Navigator.prototype.backuntil = function(timestamp) {
   var unlimited = this.repeats===Infinity
-    , prev = moment(this.end_date).utcOffset(0)
+    , prev = gmt(this.end_date)
     , prev_count = this.repeats
     , next
     , next_count;
@@ -84,7 +84,7 @@ Navigator.prototype.backuntil = function(timestamp) {
   if (timestamp < this.end_date) {
     while (timestamp <= prev && (unlimited || prev_count > 0)) {
       prev_count--;
-      next = moment(prev).utcOffset(0);
+      next = gmt(prev);
       prev.subtract(this.duration);
     }
 
@@ -103,15 +103,13 @@ Navigator.prototype.backuntil = function(timestamp) {
 };
 
 Navigator.prototype.search = function(timestamp, direction, cb) {
-  var ret = moment(timestamp)
+  var ret = gmt(timestamp)
     , out_of_bounds
     , boxed;
 
   if(!ret.isValid()) {
     return callback(this.errors.bad_timestamp, NaN, cb);
   }
-
-  ret.utcOffset(0);
 
   if (direction === 'prev') {
     back = true;
@@ -165,6 +163,10 @@ function callback(err, result, cb) {
   return result;
 };
 
+function gmt(timestamp) {
+  return moment(timestamp).utcOffset(0);
+}
+
 function isoFactory(interval, cb) {
   var invalid_navigator = new Navigator({ duration: moment(null) })
     , errors = invalid_navigator.errors
@@ -210,13 +212,13 @@ function isoFactory(interval, cb) {
     }
   } else if (pieces[1].charAt(0) === 'P') { // 4.5.1.d
     duration = moment.duration(pieces[1]);
-    end_date = moment(pieces[2]).utcOffset(0);
+    end_date = gmt(pieces[2]);
   } else if (pieces[2].charAt(0) === 'P') { // 4.5.1.c
-    start_date = moment(pieces[1]).utcOffset(0);
+    start_date = gmt(pieces[1]);
     duration = moment.duration(pieces[2]);
   } else { // 4.5.1.a
-    start_date = moment(pieces[1]).utcOffset(0);
-    duration = moment.duration(moment(pieces[2]).utcOffset(0) - start_date);
+    start_date = gmt(pieces[1]);
+    duration = moment.duration(gmt(pieces[2]) - start_date);
   }
 
   if (duration === undefined || duration.asSeconds() === 0) {
