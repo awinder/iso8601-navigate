@@ -8,6 +8,58 @@ var assert = require('chai').assert
   , ends = ['2016-01-22T00:00:00Z', '2016-01-23T12:00:00Z']
   , cases = [];
 
+/*
+Testing still needs a lot of love:
+
+- all four recurrence formats
+- missing, 0, 1, and one or more higher numbers for recurrence counts
+  - special attention to 0 and 1
+- bad examples of all of these that should produce errors
+
+Currently we are testing validity of the navigator object for all good
+examples of the input formats, broadly, but not all the different period
+formats (mainly because we're handing those off to moment.duration anyway,
+so it's not clear that it's useful to repeat tests they undoubtedly have).
+
+We are also testing cases where the recurrence count is unspecified (Infinity),
+and where we have a start and end date.
+
+Things we still need to test:
+
+- specified recurrence counts above 1
+- recurrence count of 1
+  - upper and lower bounds/edges of these...
+
+- recurrence count of 0
+  - start date:
+    - next(start_date-1): start_date
+    - next(start_date): start_date
+    - next(start_date+1): NaN
+    - prev(start_date-1): NaN
+    - prev(start_date): NaN
+    - prev(start_date+1): NaN
+  - end date:
+    - next( (end_date-period) - 1): end_date-period
+    - next(end_date-period): end_date-period
+    - next( (end_date-period) + 1): NaN
+    - next(end_date): NaN
+    - prev( (end_date-period) - 1): NaN
+    - prev(end_date-period): NaN
+    - prev((end_date-period) + 1): end_date-period
+    - prev(end_date): end_date-period
+  - neither:
+    - next(given): given
+    - prev(given): NaN
+    - (this is consistent with how we're treating other recurrences, but has
+      the odd effect that R0/P<anything> and R1/P<same anything> always mean
+      the same thing for next/prev; later when we add some manipulation there
+      will be a workflow like "var n = navigate(R1/P<anything>); ... n.next(now); n.fire(); n.to_iso_8601();"
+      which turns R1/P... into R0/P... such that we can keep track of occurences
+      without a start or end)
+
+*/
+
+
 designators.forEach(function(designator) {
   var start = null
     , end = null
@@ -86,6 +138,9 @@ function build_test_case(interval, period, start, end, repeat) {
   return test_case;
 }
 
+
+// build_triples probably needs a little more subtlety before we
+// can use it for all test cases.
 function build_triples(base, period, edge, recurrences) {
   var triples = []
     , bump = 1 // 1s
@@ -93,29 +148,29 @@ function build_triples(base, period, edge, recurrences) {
     , halfAgain = Math.floor(period*1.5);
   if(recurrences===0) {
     // these are all the cases we can test for this
-    return [[undefined, base-bump, base],
-            [undefined, base, base],
-            [base, base+bump, undefined],
-            [undefined, base-half, base],
-            [undefined, base, base],
-            [base, base+half, undefined]];
+    return [[NaN, base-bump, base],
+            [NaN, base, base],
+            [base, base+bump, NaN],
+            [NaN, base-half, base],
+            [NaN, base, base],
+            [base, base+half, NaN]];
   }
 
   if(edge==='upper') {
     triples = [[base-period, base-bump, base],
                [base-period, base,   base],
-               [base,        base+bump, undefined]];
+               [base,        base+bump, NaN]];
     if(recurrences===1) {
       triples.concat([[undefined, base-halfAgain, base],
-                      [base,      base+halfAgain, undefined]]);
+                      [base,      base+halfAgain, NaN]]);
     }
   } else if (edge==='lower') {
-    triples = [[undefined, base-bump, base],
-               [undefined, base,   base],
+    triples = [[NaN, base-bump, base],
+               [NaN, base,   base],
                [base,      base+bump, base+period]];
     if(recurrences===1) {
-      triples.concat([[undefined,   base-halfAgain, base],
-                      [base+period, base+halfAgain, undefined]]);
+      triples.concat([[NaN,   base-halfAgain, base],
+                      [base+period, base+halfAgain, NaN]]);
     }
   } else {
     triples = [[base-period, base-bump, base],
@@ -127,8 +182,8 @@ function build_triples(base, period, edge, recurrences) {
 }
 
 function momentize(timestamp) {
-  if(timestamp===undefined) {
-    return undefined;
+  if(timestamp===NaN) {
+    return NaN;
   }
   return moment.unix(timestamp);
 }
@@ -209,12 +264,12 @@ cases.forEach(function(test) {
     });
     test.cases.forEach(function(triple) {
       var triple = triple
-        , prev = triple[0]//===undefined ? triple[0] : triple[0].unix()
-        , base = triple[1]//===undefined ? triple[1] : triple[1].unix()
-        , next = triple[2]//===undefined ? triple[2] : triple[2].unix()
-        , prev_human = prev===undefined ? 'undefined' : momentize(triple[0]).toISOString()
-        , base_human = momentize(triple[1]).toISOString()
-        , next_human = next===undefined ? 'undefined' : momentize(triple[2]).toISOString();
+        , prev = triple[0]
+        , prev_human = prev===NaN ? 'none' : momentize(prev).toISOString()
+        , base = triple[1]
+        , base_human = momentize(base).toISOString()
+        , next = triple[2]
+        , next_human = next===NaN ? 'none' : momentize(next).toISOString();
       describe('next('+base+') '+base_human, function() {
         it('should return and callback '+next+' ('+next_human+')', function(done) {
           var returned = nav.next(m(base), function(err, result) {
