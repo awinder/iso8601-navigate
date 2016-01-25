@@ -46,7 +46,7 @@ Navigator.prototype.step = function(timestamp, back) {
 };
 
 Navigator.prototype.until = function(timestamp) {
-  var unlimited = this.repeats===Infinity
+  var unlimited = (this.repeats === Infinity)
     , next = gmt(this.start_date)
     , next_count = 0
     , prev
