@@ -1,116 +1,237 @@
 var moment = require('moment')
 
-function parseInterval(intervalStr) {
-	var parts = intervalStr.match(/P((\d+)Y)?((\d+)M)?((\d+)D)?T?((\d+)H)?((\d+)M)?((\d+)S)?/);
-		
-	var interval = NaN;
-	
-	if (parts) {
-		interval = {
-			years: parseInt(parts[2]) || 0,
-			months: parseInt(parts[4]) || 0,
-			days: parseInt(parts[6]) || 0,
-			hours: parseInt(parts[8]) || 0,
-			minutes: parseInt(parts[10]) || 0,
-			seconds: parseInt(parts[12]) || 0
-		}
-	}
-	
-	return interval;
+function Navigator(conf) {
+  this.start_date = conf.start_date;
+  this.end_date = conf.end_date;
+  this.duration = conf.duration;
+  this.repeats = conf.repeats;
+
+  errors = {
+    invalid: 'ISO8601 navigator interval is not valid',
+    bad_timestamp: 'Given timestamp is invalid',
+    too_many_separators: 'ISO8601: too many interval designators',
+    too_few_separators: 'ISO8601: not enough interval designators',
+    repeat_required: 'ISO8601 repeating interval must start with `R`',
+    iso_string_required: 'An ISO8601-formatted string is required',
+    parse_error: 'Unable to parse interval'
+  };
+
+  if (this.end_date && this.end_date.isValid()) {
+    errors.no_later = 'No recurrence after ' + this.end_date.toISOString();
+  }
+
+  if (this.start_date && this.start_date.isValid()) {
+    errors.no_earlier = 'No recurrence after ' + this.start_date.toISOString();
+  }
+
+  this.errors = errors;
 }
 
-function IsoFactory(conf) {
-	this.config = conf;
+Navigator.prototype.step = function(timestamp, back) {
+  var next = gmt(timestamp)
+    , prev = gmt(timestamp)
+    , next_count = 1
+    , prev_count = 0;
+
+  if (back) {
+    prev.subtract(this.duration);
+  } else {
+    next.add(this.duration);
+  }
+
+  return {next: next,
+          next_count: next_count,
+          prev: prev,
+          prev_count: prev_count};
+};
+
+Navigator.prototype.until = function(timestamp) {
+  var unlimited = (this.repeats === Infinity)
+    , next = gmt(this.start_date)
+    , next_count = 0
+    , prev
+    , prev_count;
+
+  if (this.start_date < timestamp) {
+    while (timestamp > next && (unlimited || this.repeats > next_count)) {
+      next_count++;
+      prev = gmt(next);
+      next.add(this.duration);
+    }
+
+    if (timestamp > next) { // we hit our repeat count
+      prev = next;
+      next = undefined;
+    }
+
+    prev_count = (prev === undefined) ? undefined : next_count - 1;
+    next_count = (next === undefined) ? undefined : next_count;
+  }
+
+  return {next: next,
+          next_count: next_count,
+          prev: prev,
+          prev_count: prev_count};
+};
+
+Navigator.prototype.back_until = function(timestamp) {
+  var unlimited = (this.repeats === Infinity)
+    , prev = gmt(this.end_date)
+    , prev_count = this.repeats
+    , next
+    , next_count;
+
+  if (timestamp < this.end_date) {
+    while (timestamp <= prev && (unlimited || prev_count > 0)) {
+      prev_count--;
+      next = gmt(prev);
+      prev.subtract(this.duration);
+    }
+
+    if (timestamp < prev) {
+      next = prev;
+      prev = undefined;
+    }
+
+    next_count = (next === undefined) ? undefined : prev_count + 1;
+    prev_count = (prev === undefined) ? undefined : prev_count;
+  }
+  return {next: next,
+          next_count: next_count,
+          prev: prev,
+          prev_count: prev_count};
+};
+
+Navigator.prototype.search = function(timestamp, direction, cb) {
+  var ret = gmt(timestamp)
+    , out_of_bounds
+    , boxed;
+
+  if (!ret.isValid()) {
+    return callback(this.errors.bad_timestamp, NaN, cb);
+  }
+
+  if (direction === 'prev') {
+    back = true;
+    out_of_bounds = this.errors.no_earlier;
+  } else {
+    direction = 'next';
+    back = false;
+    out_of_bounds = this.errors.no_later;
+  }
+
+  if (this.duration === undefined || this.duration.asSeconds() === 0) {
+    return callback(this.errors.invalid, NaN, cb);
+  }
+
+  if (ret.isValid() === false) {
+    return callback(this.errors.bad_timestamp, NaN, cb);
+  }
+
+  if (this.start_date) {
+    boxed = this.until(ret);
+  } else if (this.end_date) {
+    boxed = this.back_until(ret);
+  } else {
+    boxed = this.step(ret, back);
+  }
+
+  if (boxed[direction]) {
+    return callback(null, boxed[direction].unix(), cb);
+  } else {
+    return callback(out_of_bounds, NaN, cb);
+  }
+
+};
+
+Navigator.prototype.next = function(timestamp, cb) {
+  return this.search(timestamp, 'next', cb);
+};
+
+Navigator.prototype.prev = function(timestamp, cb) {
+  return this.search(timestamp, 'prev', cb);
+};
+
+Navigator.prototype.previous = Navigator.prototype.prev;
+
+function callback(err, result, cb) {
+  if (typeof err === 'string') {
+    err = new Error(err);
+  }
+  if (cb) cb(err, result);
+  return result;
+};
+
+function gmt(timestamp) {
+  return moment(timestamp).utcOffset(0);
 }
 
-IsoFactory.prototype.next = function(timestamp) {
-	if (typeof this.config.interval !== 'object') {
-		return NaN;
-	}
-	
-	var ret = moment(timestamp);
-	
-	if (ret.isValid() === false || ret > this.config.end_date) {
-		return NaN;
-	}
-	
-	ret.add(this.config.interval.years, 'years');
-	ret.add(this.config.interval.months, 'months');
-	ret.add(this.config.interval.days, 'days');
-	ret.add(this.config.interval.hours, 'hours');
-	ret.add(this.config.interval.minutes, 'minutes');
-	ret.add(this.config.interval.seconds, 'seconds');
-	
-	if (ret > this.config.end_date) { 
-		return NaN;
-	}
+function isoFactory(interval, cb) {
+  var invalid_navigator = new Navigator({ duration: moment(null) })
+    , errors = invalid_navigator.errors
+    , designator = '/'
+    , repeat = Infinity
+    , repeat_match
+    , formatting_error
+    , start_date
+    , end_date
+    , duration
+    , pieces
+    , nav;
 
-	return ret.unix();
+  try {
+    designator = interval.match(/--/) ? '--' : designator;
+    pieces = interval.split(designator);
+  } catch(e) {
+    return callback(errors.iso_string_required, invalid_navigator, cb);
+  }
+
+  // validate proper formatting
+  if (pieces.length > 3) {
+    formatting_error = errors.too_many_separators;
+  } else if (pieces.length < 2) {
+    formatting_error = errors.too_few_separators;
+  } else if (pieces[0].charAt(0) !== 'R') {
+    formatting_error = errors.repeat_required;
+  }
+
+  if (formatting_error) {
+    return callback(formatting_error, invalid_navigator, cb);
+  }
+
+  repeat_match = pieces[0].match(/R(\d+)/);
+
+  if (repeat_match) {
+    repeat = parseInt(repeat_match.pop(), 10);
+  }
+
+  if (pieces.length === 2) {
+    if (pieces[1].charAt(0) === 'P') { // 4.5.1.b
+      duration = moment.duration(pieces[1]);
+    }
+  } else if (pieces[1].charAt(0) === 'P') { // 4.5.1.d
+    duration = moment.duration(pieces[1]);
+    end_date = gmt(pieces[2]);
+  } else if (pieces[2].charAt(0) === 'P') { // 4.5.1.c
+    start_date = gmt(pieces[1]);
+    duration = moment.duration(pieces[2]);
+  } else { // 4.5.1.a
+    start_date = gmt(pieces[1]);
+    duration = moment.duration(gmt(pieces[2]) - start_date);
+  }
+
+  if (duration === undefined || duration.asSeconds() === 0) {
+    return callback(errors.parse_error, invalid_navigator, cb);
+  }
+
+  nav = new Navigator({
+    start_date: start_date,
+    end_date: end_date,
+    duration: duration,
+    repeats: repeat
+  });
+
+  return callback(null, nav, cb);
 };
 
-IsoFactory.prototype.previous = function(timestamp) {
-	if (typeof this.config.interval !== 'object') {
-		return NaN;
-	}
-	
-	var ret = moment(timestamp);
-	
-	if (ret.isValid() === false || ret < this.config.start_date) {
-		return NaN;
-	}
-	
-	ret.subtract(this.config.interval.years, 'years');
-	ret.subtract(this.config.interval.months, 'months');
-	ret.subtract(this.config.interval.days, 'days');
-	ret.subtract(this.config.interval.hours, 'hours');
-	ret.subtract(this.config.interval.minutes, 'minutes');
-	ret.subtract(this.config.interval.seconds, 'seconds');
-	
-	if (ret < this.config.start_date) { 
-		return NaN;
-	}
-	
-	return ret.unix();
-};
-
-module.exports = function(interval) {
-	var pieces = [];
-	
-	if (typeof interval === 'string') {
-		pieces = interval.split('/');
-	}
-	
-	// validate proper formatting
-	if (pieces.length > 3 || pieces.length < 2 || pieces[0].charAt(0) !== 'R') {
-		return IsoFactory({ interval: NaN });
-	}
-	
-	var repeat = pieces[0].match(/R(\d+)/);
-	
-	if (repeat) {
-		repeat = repeat.pop();
-	} else {
-		repeat = 0;
-	}
-	
-	var start_date = 0
-	  , end_date = Infinity
-	  , interval = NaN;
-	  
-	if (pieces.length === 2 && pieces[1].charAt(0) === 'P') {
-		interval = parseInterval(pieces[1]);
-	} else if (pieces.length === 3 && pieces[1].charAt(0) === 'P') {
-		interval = parseInterval(pieces[1]);
-		end_date = moment(pieces[2]);
-	} else if (pieces.length === 3 && pieces[2].charAt(0) === 'P') {
-		interval = parseInterval(pieces[2]);
-		start_date = moment(pieces[1]);
-	}
-	
-	return new IsoFactory({
-		start_date: start_date,
-		end_date: end_date,
-		interval: interval,
-		repeats: repeat
-	});
-};
+module.exports = isoFactory;
