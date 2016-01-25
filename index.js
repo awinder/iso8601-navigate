@@ -64,8 +64,8 @@ Navigator.prototype.until = function(timestamp) {
       next = undefined;
     }
 
-    prev_count = prev===undefined ? undefined : next_count - 1;
-    next_count = next===undefined ? undefined : next_count;
+    prev_count = (prev === undefined) ? undefined : next_count - 1;
+    next_count = (next === undefined) ? undefined : next_count;
   }
 
   return {next: next,
@@ -74,8 +74,8 @@ Navigator.prototype.until = function(timestamp) {
           prev_count: prev_count};
 };
 
-Navigator.prototype.backuntil = function(timestamp) {
-  var unlimited = this.repeats===Infinity
+Navigator.prototype.back_until = function(timestamp) {
+  var unlimited = (this.repeats === Infinity)
     , prev = gmt(this.end_date)
     , prev_count = this.repeats
     , next
@@ -93,8 +93,8 @@ Navigator.prototype.backuntil = function(timestamp) {
       prev = undefined;
     }
 
-    next_count = next===undefined ? undefined : prev_count + 1;
-    prev_count = prev===undefined ? undefined : prev_count;
+    next_count = (next === undefined) ? undefined : prev_count + 1;
+    prev_count = (prev === undefined) ? undefined : prev_count;
   }
   return {next: next,
           next_count: next_count,
@@ -107,7 +107,7 @@ Navigator.prototype.search = function(timestamp, direction, cb) {
     , out_of_bounds
     , boxed;
 
-  if(!ret.isValid()) {
+  if (!ret.isValid()) {
     return callback(this.errors.bad_timestamp, NaN, cb);
   }
 
@@ -131,11 +131,10 @@ Navigator.prototype.search = function(timestamp, direction, cb) {
   if (this.start_date) {
     boxed = this.until(ret);
   } else if (this.end_date) {
-    boxed = this.backuntil(ret);
+    boxed = this.back_until(ret);
   } else {
     boxed = this.step(ret, back);
   }
-  if(this.flag===timestamp) console.dir(boxed);
 
   if (boxed[direction]) {
     return callback(null, boxed[direction].unix(), cb);
